@@ -15,7 +15,7 @@ const mongoUri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/himalayan_t
 mongoose
   .connect(mongoUri)
   .then(() => {
-    console.log('Connected to MongoDB', mongoose.connection.host, mongoose.connection.name);
+    console.log('Connected to MongoDB');
   })
   .catch((err) => { 
     console.error('MongoDB connection error:', err);
