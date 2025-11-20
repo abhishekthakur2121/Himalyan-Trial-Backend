@@ -5,7 +5,7 @@ import Testimonial from '../models/Testimonial.js';
 
 dotenv.config();
 
-const mongoUri = process.env.MONGO_URI || 'mongodb+srv://Abhi_111:Abhi111@cluster0.ulhadkb.mongodb.net/himalayan_trails';
+const mongoUri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/himalayan_trails';
 
 const packages = [
   {

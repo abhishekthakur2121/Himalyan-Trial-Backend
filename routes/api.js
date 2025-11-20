@@ -3,7 +3,6 @@ import Package from '../models/Package.js';
 import Testimonial from '../models/Testimonial.js';
 import Inquiry from '../models/Inquiry.js';
 import Admin from '../models/Admin.js';
-import { notifyInquiry } from '../utils/notify.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
@@ -111,13 +110,68 @@ router.delete('/admin/packages/:id', authAdmin, async (req, res, next) => {
   }
 });
 
+// Admin: manage testimonials (reviews)
+router.get('/admin/testimonials', authAdmin, async (req, res, next) => {
+  try {
+    const items = await Testimonial.find({}).sort({ createdAt: -1 });
+    res.json(items);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/admin/testimonials', authAdmin, async (req, res, next) => {
+  try {
+    const { name, location, rating, comment, avatar } = req.body;
+    if (!name || !comment || !rating) {
+      return res.status(400).json({ message: 'Name, rating, and comment are required' });
+    }
+
+    const created = await Testimonial.create({
+      name,
+      location,
+      rating,
+      comment,
+      avatar
+    });
+    res.status(201).json(created);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.put('/admin/testimonials/:id', authAdmin, async (req, res, next) => {
+  try {
+    const { name, location, rating, comment, avatar } = req.body;
+    const update = { name, location, rating, comment, avatar };
+
+    const doc = await Testimonial.findByIdAndUpdate(req.params.id, update, { new: true });
+    if (!doc) {
+      return res.status(404).json({ message: 'Testimonial not found' });
+    }
+    res.json(doc);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/admin/testimonials/:id', authAdmin, async (req, res, next) => {
+  try {
+    const doc = await Testimonial.findByIdAndDelete(req.params.id);
+    if (!doc) {
+      return res.status(404).json({ message: 'Testimonial not found' });
+    }
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post('/contact', async (req, res, next) => {
   try {
     const { name, email, phone, package: pkg, message } = req.body;
     const inquiry = new Inquiry({ name, email, phone, package: pkg, message });
     await inquiry.save();
-    // Fire-and-forget notification (email / WhatsApp) – errors are handled inside notifyInquiry
-    notifyInquiry({ name, email, phone, pkg, message }).catch(() => {});
     res.status(201).json({ success: true });
   } catch (err) {
     next(err);
@@ -145,7 +199,7 @@ router.post('/admin/signup', async (req, res, next) => {
     const passwordHash = await bcrypt.hash(password, 10);
     const admin = await Admin.create({ email, passwordHash });
 
-    const token = jwt.sign({ id: admin._id }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ id: admin._id }, JWT_SECRET, { expiresIn: '30d' });
     res.status(201).json({ token, admin: { id: admin._id, email: admin.email } });
   } catch (err) {
     next(err);
@@ -170,8 +224,36 @@ router.post('/admin/login', async (req, res, next) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    const token = jwt.sign({ id: admin._id }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ id: admin._id }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, admin: { id: admin._id, email: admin.email } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Admin: change password (authenticated)
+router.post('/admin/change-password', authAdmin, async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current password and new password are required' });
+    }
+
+    const admin = await Admin.findById(req.adminId);
+    if (!admin) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, admin.passwordHash);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Current password is incorrect' });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    admin.passwordHash = passwordHash;
+    await admin.save();
+
+    res.json({ success: true });
   } catch (err) {
     next(err);
   }
